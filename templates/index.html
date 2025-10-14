@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thinkr - Your AI Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+  <div class="main-container">
+
+    <div id="history-panel" class="history-panel">
+      <h2>History</h2>
+      <div id="history-box">
+        </div>
+    </div>
+
+    <div class="chat-container">
+      <h1>⚡ Thinkr - Your AI Assistant</h1>
+      <h7>made by Rishabh</h7>
+      <div id="chat-box">
+        </div>
+
+      <div class="search-bar">
+          <input type="text" id="userInput" placeholder="💡 Ask Thinkr anything..." onkeydown="if(event.key==='Enter'){sendMessage();}">
+          
+          <button class="icon-btn send-btn" onclick="sendMessage()">
+              <img src="{{ url_for('static', filename='th.webp') }}" alt="Send" class="button-icon">
+          </button>
+          
+          <button class="icon-btn stop-btn hidden" onclick="stopResponding()">⏹️</button>
+          
+          <button class="icon-btn mic-btn" onclick="startListening()">
+              <img src="{{ url_for('static', filename='OIP (3).webp') }}" alt="Mic" class="button-icon">
+          </button>
+          
+          <button class="icon-btn history-btn" onclick="toggleHistory()">📚</button>
+          <button class="icon-btn delete-btn" onclick="deleteHistory()">🗑️</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

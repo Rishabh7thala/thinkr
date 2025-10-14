@@ -1,0 +1,246 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+body {
+  background: linear-gradient(135deg, #0d0d0d, #1a1a2e, #16213e);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: #e0e0e0;
+  background-size: 400% 400%;
+  animation: gradient-animation 15s ease infinite;
+}
+
+/* Gradient animation for body background */
+@keyframes gradient-animation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Main container with glassmorphism and subtle glow */
+.main-container {
+  display: flex;
+  height: 90vh;
+  max-width: 1200px;
+  width: 100%;
+  border-radius: 20px;
+  background: rgba(25, 25, 25, 0.65);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 255, 231, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+.main-container:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 255, 231, 0.25);
+}
+
+/* Sidebar / history */
+.history-panel {
+  width: 25%;
+  min-width: 260px;
+  background: rgba(20, 20, 20, 0.95);
+  padding: 25px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  transition: transform 0.4s ease-in-out;
+  display: flex;
+  flex-direction: column;
+}
+.history-panel.hidden {
+  transform: translateX(-100%);
+}
+.history-panel h2 {
+  color: #00ffe7;
+  margin-bottom: 20px;
+  font-weight: 600;
+  text-shadow: 0 0 5px rgba(0, 255, 231, 0.6);
+}
+#history-box {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding-right: 15px; /* Add space for scrollbar */
+}
+
+/* Chat container */
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 30px;
+  position: relative;
+}
+
+h1 {
+  margin: 0 0 15px;
+  color: #00ffe7;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(0, 255, 231, 0.7);
+  letter-spacing: 1px;
+}
+
+h7 {
+  text-align: center;
+  color: #aaa;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* Chat messages */
+#chat-box {
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  padding-right: 12px;
+}
+.message {
+  max-width: 75%;
+  padding: 14px 20px;
+  border-radius: 20px;
+  margin: 10px 0;
+  font-size: 16px;
+  line-height: 1.5;
+  animation: fadeIn 0.4s ease-in-out;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Specific message styles */
+.user-msg {
+  background: linear-gradient(145deg, #00ffe7, #00c9b7);
+  color: #000;
+  margin-left: auto;
+  border-bottom-right-radius: 5px;
+}
+.ai-msg {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-right: auto;
+  border-bottom-left-radius: 5px;
+}
+.ai-typing {
+  background: #333;
+  color: #00ffe7;
+  font-style: italic;
+  animation: pulse 1s infinite;
+}
+
+/* Input bar */
+.search-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(35, 35, 35, 0.9);
+  border-radius: 40px;
+  padding: 8px;
+  box-shadow: 0 0 15px rgba(0, 255, 231, 0.2);
+  transition: box-shadow 0.3s ease;
+}
+.search-bar:focus-within {
+  box-shadow: 0 0 20px rgba(0, 255, 231, 0.4);
+}
+.search-bar input {
+  flex: 1;
+  padding: 16px 20px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 16px;
+}
+.search-bar input::placeholder {
+  color: #aaa;
+  opacity: 0.7;
+}
+
+/* ---- ICON STYLING (UPDATED) ---- */
+.icon-btn {
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 5px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.icon-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Style for image icons inside buttons */
+.button-icon {
+  width: 25px; 
+  height: 25px;
+  object-fit: contain;
+}
+
+.send-btn {
+  background: linear-gradient(145deg, #00ffe7, #00c9b7);
+  color: #000;
+}
+.stop-btn {
+  background: #ff4d4d;
+  color: #fff;
+}
+.mic-btn {
+  background: #2b2b2b;
+  color: #00ffe7;
+}
+/* Invert mic icon color (OIP (3).webp is black) to appear light on dark background */
+.mic-btn .button-icon {
+    filter: invert(1); 
+}
+
+.delete-btn {
+  background: #2b2b2b;
+  color: #ff4d4d;
+}
+.history-btn {
+  background: #2b2b2b;
+  color: #fff;
+}
+.hidden {
+  display: none !important;
+}
+
+/* Images */
+.image-message {
+  max-width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.6);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Scrollbar styling for a cleaner look */
+::-webkit-scrollbar {
+  width: 8px;
+  background-color: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
