@@ -10,3 +10,4 @@ python-dotenv==1.0.0
 # numpy==1.26.4            # For numerical operations
 # Pillow==10.2.0           # For image processing
 # openai==1.14.3           # If you're using OpenAI API
+requests==2.31.0
