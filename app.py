@@ -1,8 +1,8 @@
 from dotenv import load_dotenv
 import os, json, uuid, logging, requests
 from flask import Flask, render_template, request, jsonify, send_from_directory
-# 🔴 FIX: Import Client from the 'client' submodule and types from 'types' submodule.
-from google.generativeai.client import Client 
+# FIX: Use the standard import structure for the modern SDK.
+import google.generativeai as genai 
 from google.generativeai import types
 from datetime import datetime
 
@@ -12,8 +12,8 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     # IMPORTANT: Ensure your GEMINI_API_KEY is in a file named api.env
     raise RuntimeError("❌ GEMINI_API_KEY not set in api.env file")
-# Client is initialized correctly using the directly imported Client class
-client = Client(api_key=api_key)
+# Initialization now works with the standard genai alias from the modern package
+client = genai.Client(api_key=api_key)
 
 # ---------------- Config ----------------
 name_alias = "Thinkr"  # Default AI name
