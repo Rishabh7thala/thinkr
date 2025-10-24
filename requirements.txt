@@ -4,11 +4,6 @@ gunicorn==21.2.0
 python-dotenv==1.0.0
 
 # Optional utilities (uncomment if needed)
-# requests==2.31.0         # For making HTTP requests
-# pandas==2.2.2            # For data manipulation
-# flask-cors==4.0.0        # For handling CORS in APIs
-# numpy==1.26.4            # For numerical operations
-# Pillow==10.2.0           # For image processing
-# openai==1.14.3           # If you're using OpenAI API
 requests==2.31.0
-google-generativeai==0.3.2
+# Ensure this line is NOT constrained to an old version (e.g., no ==0.3.2)
+google-generativeai
