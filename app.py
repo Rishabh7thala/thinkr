@@ -1,8 +1,9 @@
 from dotenv import load_dotenv
 import os, json, uuid, logging, requests
 from flask import Flask, render_template, request, jsonify, send_from_directory
-# FIX: Explicitly import Client and types to avoid the AttributeError
-from google.generativeai import Client, types
+# 🔴 FIX: Import Client from the 'client' submodule and types from 'types' submodule.
+from google.generativeai.client import Client 
+from google.generativeai import types
 from datetime import datetime
 
 # ---------------- Load API Key ----------------
@@ -11,7 +12,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     # IMPORTANT: Ensure your GEMINI_API_KEY is in a file named api.env
     raise RuntimeError("❌ GEMINI_API_KEY not set in api.env file")
-# FIX: Use the directly imported Client class
+# Client is initialized correctly using the directly imported Client class
 client = Client(api_key=api_key)
 
 # ---------------- Config ----------------
@@ -193,7 +194,5 @@ def delete_history():
     return jsonify({"status": "History deleted"})
 
 if __name__ == '__main__':
-    # Render's default port is 10000, but in Flask it's 5000. 
-    # For Render, it's best practice to use the PORT environment variable if available.
     port = int(os.environ.get("PORT", 5000))
     app.run(port=port, debug=True)
