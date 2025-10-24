@@ -1,9 +1,8 @@
 from dotenv import load_dotenv
 import os, json, uuid, logging, requests
 from flask import Flask, render_template, request, jsonify, send_from_directory
-# FIX: The correct way to import the library module is 'google.generativeai'.
-import google.generativeai as genai
-from google.generativeai import types # Correct import for types submodule
+# FIX: Explicitly import Client and types to avoid the AttributeError
+from google.generativeai import Client, types
 from datetime import datetime
 
 # ---------------- Load API Key ----------------
@@ -12,8 +11,8 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     # IMPORTANT: Ensure your GEMINI_API_KEY is in a file named api.env
     raise RuntimeError("❌ GEMINI_API_KEY not set in api.env file")
-# The client is initialized correctly using the alias 'genai'
-client = genai.Client(api_key=api_key)
+# FIX: Use the directly imported Client class
+client = Client(api_key=api_key)
 
 # ---------------- Config ----------------
 name_alias = "Thinkr"  # Default AI name
@@ -136,9 +135,6 @@ def ask():
             name_alias = user_input.split("call me")[-1].strip().capitalize()
             return jsonify({"response": f"Got it! I’ll call you {name_alias} from now on."})
 
-        # REMOVED: Hardcoded 'profit' calculation. The Gemini model is powerful enough 
-        # to handle simple calculations when prompted directly.
-
         # Gemini Response
         prompt = build_prompt(user_input)
         answer = gemini_generate(prompt)
@@ -197,4 +193,7 @@ def delete_history():
     return jsonify({"status": "History deleted"})
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    # Render's default port is 10000, but in Flask it's 5000. 
+    # For Render, it's best practice to use the PORT environment variable if available.
+    port = int(os.environ.get("PORT", 5000))
+    app.run(port=port, debug=True)
