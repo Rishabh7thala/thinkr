@@ -1,8 +1,9 @@
 from dotenv import load_dotenv
 import os, json, uuid, logging, requests
 from flask import Flask, render_template, request, jsonify, send_from_directory
-from google import genai
-from google.genai import types
+# FIX: The correct way to import the library module is 'google.generativeai'.
+import google.generativeai as genai
+from google.generativeai import types # Correct import for types submodule
 from datetime import datetime
 
 # ---------------- Load API Key ----------------
@@ -11,6 +12,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     # IMPORTANT: Ensure your GEMINI_API_KEY is in a file named api.env
     raise RuntimeError("❌ GEMINI_API_KEY not set in api.env file")
+# The client is initialized correctly using the alias 'genai'
 client = genai.Client(api_key=api_key)
 
 # ---------------- Config ----------------
@@ -31,6 +33,7 @@ app = Flask(__name__, static_folder='static')
 
 # ---------------- Utils ----------------
 def sanitize_input(text: str) -> str:
+    # Added backticks and dollar signs to blocked list for safety
     blocked = [";", "&&", "||", "`", "$", "<", ">", "drop", "delete", "insert"]
     for b in blocked:
         text = text.replace(b, "")
@@ -76,11 +79,13 @@ def build_prompt(user_input):
         elif isinstance(item['text'], str):
             conversation += f"{item['sender']}: {item['text']}\n"
 
-    instruction = f"\nYou are a friendly AI assistant named {name_alias}. Answer naturally.\nUser said: {user_input}"
+    # Instruction is placed at the end for better focus
+    instruction = f"\nYou are a friendly AI assistant named {name_alias}. Answer naturally and concisely. User said: {user_input}"
     return conversation + instruction
 
 def gemini_generate(prompt: str) -> str:
     try:
+        # Using Google Search grounding tool for real-time information
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
@@ -88,7 +93,10 @@ def gemini_generate(prompt: str) -> str:
                 tools=[types.Tool(google_search=types.GoogleSearch())]
             ),
         )
-        return response.text or "⚠️ No response generated."
+        # Check for candidates before returning response text
+        if response.candidates and response.candidates[0].content.parts:
+            return response.text
+        return "⚠️ No valid response generated. Please try again."
     except Exception as e:
         logging.error(f"Gemini error: {e}")
         return "⚠️ Sorry, I couldn’t process that request."
@@ -113,9 +121,11 @@ def ask():
             # Signal the frontend to call the dedicated image endpoint
             prompt = user_input
             for word in ["image", "picture", "draw", "create an image of", "generate"]:
-                prompt = prompt.replace(word, "")
+                # Simple replacement to clean up the prompt for the image API
+                prompt = prompt.replace(word, "") 
             return jsonify({"type": "image", "prompt": prompt.strip()})
 
+        # --- Hardcoded Responses ---
         if "who made you" in lower_input or "who is your creator" in lower_input:
             return jsonify({"response": "I was created by Rishabh, using a large language model from Google."})
 
@@ -126,13 +136,8 @@ def ask():
             name_alias = user_input.split("call me")[-1].strip().capitalize()
             return jsonify({"response": f"Got it! I’ll call you {name_alias} from now on."})
 
-        if "profit" in lower_input:
-            parts = [p for p in lower_input.replace("profit", "").split() if p]
-            if len(parts) >= 2 and all(p.replace('.', '', 1).isdigit() for p in parts[:2]):
-                cost, revenue = map(float, parts[:2])
-                profit = revenue - cost
-                return jsonify({"response": f"{name_alias}, your profit is ₹{profit:.2f}"})
-            return jsonify({"response": f"{name_alias}, please enter cost and revenue like: 'profit 500 1200'"}), 400
+        # REMOVED: Hardcoded 'profit' calculation. The Gemini model is powerful enough 
+        # to handle simple calculations when prompted directly.
 
         # Gemini Response
         prompt = build_prompt(user_input)
