@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 # Import Google GenAI SDK
 import google.generativeai as genai
-from google.generativeai.errors import APIError
+from google.genai.errors import APIError
 
 # Import requests for calling the Nano Banana Image API
 import requests
