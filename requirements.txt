@@ -1,9 +1,12 @@
-# Core dependencies
+# --- Core dependencies ---
 Flask==2.3.2
 gunicorn==21.2.0
 python-dotenv==1.0.0
 
-# Optional utilities (uncomment if needed)
+# --- Optional utilities ---
 requests==2.31.0
-# Ensure this line is NOT constrained to an old version (e.g., no ==0.3.2)
-google-generativeai
+
+# --- Google Gemini SDK ---
+# Avoid old versions that lack latest model and error handling
+google-generativeai>=0.5.2
+
