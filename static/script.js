@@ -1,3 +1,7 @@
+// Global state flag
+let isResponding = false;
+let stopFlag = false;
+
 // Append message to the main chat box
 function appendMessage(sender, text, isHistory = false, className = '') {
   const chatBox = document.getElementById("chat-box");
@@ -19,7 +23,10 @@ function appendMessage(sender, text, isHistory = false, className = '') {
     chatBox.scrollTop = chatBox.scrollHeight;
     return msg; // Return the created message element for modification
   } else {
+    // History messages are prepended for chronological order in the history panel
+    // but for simplicity and to match previous code, they are appended here.
     historyBox.appendChild(msg);
+    historyBox.scrollTop = historyBox.scrollHeight;
   }
 }
 
@@ -28,8 +35,9 @@ function appendImage(sender, imageUrl, isHistory = false) {
     const chatBox = document.getElementById("chat-box");
     const historyBox = document.getElementById("history-box");
     
+    // Create a container message for the image
     const msg = document.createElement("div");
-    msg.className = "message";
+    msg.className = `message ${sender === "user" ? "user-msg" : "ai-msg"}`;
     
     // Create the image element
     const img = document.createElement("img");
@@ -39,142 +47,128 @@ function appendImage(sender, imageUrl, isHistory = false) {
     
     msg.appendChild(img);
     
-    // Ensure images have the right alignment/bubble style
-    if (sender === "user") {
-      msg.classList.add("user-msg");
-    } else {
-      msg.classList.add("ai-msg");
-    }
-
+    // Append to the appropriate box
     if (!isHistory) {
         chatBox.appendChild(msg);
         chatBox.scrollTop = chatBox.scrollHeight;
     } else {
         historyBox.appendChild(msg);
+        historyBox.scrollTop = historyBox.scrollHeight;
     }
 }
 
-// Global variable to manage response state
-let isResponding = false;
-
-/**
- * Function to handle the image generation API call (Nano Banana)
- */
-async function generateImageApi(prompt) {
-    // Add an indicator that generation is starting
-    const typingIndicator = appendMessage("ai", `🎨 Requesting image generation for: "${prompt}"...`, false, "ai-typing");
-    
-    try {
-        const res = await fetch("/generate-image-api", { 
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt })
-        });
-        const data = await res.json();
-        
-        typingIndicator.remove(); // Remove the "requesting" indicator
-
-        if(data.image_url) {
-            appendImage("ai", data.image_url);
-        } else {
-            // Display error if image_url is missing
-            appendMessage("ai", data.error || "⚠️ Could not generate image. Check the Nano Banana API URL.");
-        }
-    } catch (err) {
-        // Handle network error
-        const indicator = document.querySelector(".ai-typing");
-        if(indicator) indicator.remove(); 
-        appendMessage("ai", "⚠️ Error calling image generation API.");
-    } finally {
-        await loadHistory();
-    }
+// --- NEW FUNCTION: Start Chat ---
+function startChat() {
+    document.getElementById("welcome-screen").classList.add("hidden");
+    document.getElementById("chat-app").classList.remove("hidden");
+    // Initial welcome message
+    appendMessage("ai", "👋 Hello! I'm Thinkr, your Gemini AI assistant. What can I help you create or answer today? 🚀");
 }
 
 
-// Send message to Flask backend
+// Function to send message to the backend
 async function sendMessage() {
-  if (isResponding) return; // Prevent multiple sends
+  const userInput = document.getElementById("userInput");
+  const message = userInput.value.trim();
+  if (!message || isResponding) return;
 
-  const inputEl = document.getElementById("userInput");
-  const message = inputEl.value.trim();
-  if (!message) return;
-
-  isResponding = true;
-  document.querySelector(".send-btn").classList.add("hidden");
-  document.querySelector(".stop-btn").classList.remove("hidden");
-
-  // Add the user message to the chat box
+  // Clear input and append user message
+  userInput.value = "";
   appendMessage("user", message);
 
-  // Add a temporary "typing" message from the AI
-  const typingIndicator = appendMessage("ai", "...", false, "ai-typing");
-
-  // Clear input field immediately
-  inputEl.value = "";
+  // Set state
+  isResponding = true;
+  stopFlag = false;
+  document.querySelector(".send-btn").classList.add("hidden");
+  document.querySelector(".stop-btn").classList.remove("hidden");
+  
+  // Display typing indicator
+  const typingMsg = appendMessage("ai", "💡 Thinkr is generating...", false, "ai-typing");
 
   try {
-    // 1. Send the message to the /ask endpoint (It determines if it's an image request)
     const res = await fetch("/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: message })
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: message }),
     });
 
     const data = await res.json();
     
-    // Remove the initial "..." typing indicator
-    typingIndicator.remove();
+    // Remove typing indicator
+    if (typingMsg) typingMsg.remove(); 
 
-    // 2. Check the response type
-    if (data.type === "image" && data.prompt) {
-        // If the backend signals an image request, call the dedicated function
-        await generateImageApi(data.prompt);
-    } else {
-        // Otherwise, it's a regular text response
-        const responseText = data.response || data.error || "⚠️ No response";
-        appendMessage("ai", responseText);
-        await loadHistory(); // Refresh history after text response
+    if (data.error) {
+        appendMessage("ai", `❌ Error: ${data.error}`);
+    } else if (data.type === "image") {
+        // Handle image generation request
+        await handleImageGeneration(data.prompt);
+    } else if (data.type === "text" && !stopFlag) {
+        // Handle normal text response
+        appendMessage("ai", data.response);
+        // Reload history to ensure the new messages are displayed in the sidebar
+        loadHistory(); 
     }
 
-  } catch (err) {
-    // Remove typing indicator even on error
-    const indicator = document.querySelector(".ai-typing");
-    if(indicator) indicator.remove();
-    appendMessage("ai", "⚠️ There was an error communicating with the server.");
+  } catch (error) {
+    if (typingMsg) typingMsg.remove();
+    appendMessage("ai", `🚨 Network Error: ${error.message}`);
   } finally {
+    // Reset state
     isResponding = false;
     document.querySelector(".send-btn").classList.remove("hidden");
     document.querySelector(".stop-btn").classList.add("hidden");
   }
 }
 
-// Function to stop the response (UI only)
+// Separate function to handle image generation process
+async function handleImageGeneration(prompt) {
+    const loadingMsg = appendMessage("ai", `🎨 Generating image for prompt: "${prompt}"... This may take a moment.`, false, "ai-typing");
+    
+    try {
+        const imageRes = await fetch("/generate-image-api", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: prompt }),
+        });
+
+        const imageData = await imageRes.json();
+        
+        if (loadingMsg) loadingMsg.remove();
+        
+        if (imageData.error) {
+            appendMessage("ai", `🖼️ Image Error: ${imageData.error}`);
+        } else if (imageData.image_url && !stopFlag) {
+            appendMessage("ai", `🖼️ Image successfully generated!`);
+            appendImage("ai", imageData.image_url);
+            loadHistory(); // Reload history with image
+        }
+
+    } catch (error) {
+        if (loadingMsg) loadingMsg.remove();
+        appendMessage("ai", `🚨 Image Network Error: ${error.message}`);
+    }
+}
+
+
+// Function to stop generating response (currently only stops image generation if in progress)
 function stopResponding() {
-  if (isResponding) {
-    const typingIndicator = document.querySelector(".ai-typing");
-    if(typingIndicator) typingIndicator.remove();
-    appendMessage("ai", "Response stopped.");
-    isResponding = false;
-    document.querySelector(".send-btn").classList.remove("hidden");
-    document.querySelector(".stop-btn").classList.add("hidden");
-  }
+  stopFlag = true;
+  // Note: Stopping the Gemini API response mid-flight requires more complex server-side streaming logic
+  // For now, this just stops the client-side processing/display.
+  const typingIndicator = document.querySelector(".ai-typing");
+  if(typingIndicator) typingIndicator.remove();
+  
+  // Reset state
+  isResponding = false;
+  document.querySelector(".send-btn").classList.remove("hidden");
+  document.querySelector(".stop-btn").classList.add("hidden");
+  appendMessage("ai", "⏹️ Response stopped by user.");
 }
 
-// Function to toggle history panel visibility
-function toggleHistory() {
-  const historyPanel = document.getElementById("history-panel");
-  historyPanel.classList.toggle("hidden");
-}
 
-// Delete chat history
-async function deleteHistory() {
-  await fetch("/delete-history", { method: "POST" });
-  document.getElementById("chat-box").innerHTML = "";
-  document.getElementById("history-box").innerHTML = "";
-  appendMessage("ai", "Chat history cleared ✅");
-}
-
-// Load history on page load
+// Load and display chat history
 async function loadHistory() {
   const historyBox = document.getElementById("history-box");
   historyBox.innerHTML = ""; // Clear existing history before loading
@@ -184,7 +178,7 @@ async function loadHistory() {
     // Check if the history item is the structured format for an image
     if (item.sender === "image" && item.text && item.text.image_url) {
         // Reconstruct user prompt message for clarity in history
-        const promptText = `Generate image of: "${item.text.prompt}"`;
+        const promptText = `Generate image of: "${item.text.prompt}" 🖼️`;
         appendMessage("user", promptText, true);
         // Display the image
         appendImage("ai", item.text.image_url, true);
@@ -195,7 +189,22 @@ async function loadHistory() {
   });
 }
 
-// Voice recognition
+// Delete all chat history
+async function deleteHistory() {
+    if (!confirm("Are you sure you want to delete ALL chat history?")) {
+        return;
+    }
+    try {
+        await fetch("/delete-history", { method: "POST" });
+        document.getElementById("chat-box").innerHTML = "";
+        document.getElementById("history-box").innerHTML = "";
+        appendMessage("ai", "🗑️ All chat history has been deleted.");
+    } catch (error) {
+        appendMessage("ai", "❌ Failed to delete history.");
+    }
+}
+
+// Initialize speech recognition (remains the same)
 function startListening() {
   if (!("webkitSpeechRecognition" in window)) {
     alert("❌ Speech Recognition not supported in this browser.");
@@ -205,10 +214,17 @@ function startListening() {
   recognition.lang = "en-US";
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
+  
+  const micButton = document.querySelector(".mic-btn");
+  const sendButton = document.querySelector(".send-btn");
+  const stopButton = document.querySelector(".stop-btn");
+
   recognition.onstart = () => {
-    document.querySelector(".send-btn").classList.add("hidden");
-    document.querySelector(".stop-btn").classList.remove("hidden");
-    appendMessage("ai", "🎤 Listening...", false, "ai-typing");
+    sendButton.classList.add("hidden");
+    stopButton.classList.remove("hidden");
+    micButton.style.backgroundColor = '#ff4d4d'; // Red highlight
+    micButton.style.color = '#fff';
+    appendMessage("ai", "🎤 Listening... Say something!", false, "ai-typing");
   };
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
@@ -221,17 +237,20 @@ function startListening() {
     const typingIndicator = document.querySelector(".ai-typing");
     if(typingIndicator) typingIndicator.remove();
     appendMessage("ai", "⚠️ Voice error: " + event.error);
-    document.querySelector(".send-btn").classList.remove("hidden");
-    document.querySelector(".stop-btn").classList.add("hidden");
+    sendButton.classList.remove("hidden");
+    stopButton.classList.add("hidden");
   }
   recognition.onend = () => {
     if (!isResponding) {
-      document.querySelector(".send-btn").classList.remove("hidden");
-      document.querySelector(".stop-btn").classList.add("hidden");
+      sendButton.classList.remove("hidden");
+      stopButton.classList.add("hidden");
     }
-  };
+    micButton.style.backgroundColor = '#dddddd'; // Revert color
+    micButton.style.color = '#0088ff';
+  }
   recognition.start();
 }
 
-// Load history when the page loads
+
+// Load history on page load
 window.onload = loadHistory;
