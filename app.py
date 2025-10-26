@@ -40,7 +40,7 @@ CREATOR_TRIGGERS = ["who made you", "kisne banaya", "ai tạo ra bạn", "who is
 
 # Initialize the Gemini Model
 try:
-    MODEL_NAME = 'gemini-1.5-flash'
+    MODEL_NAME = 'gemini-2.5-flash'
     # FIX: Removed 'system_instruction' to fix the initialization error 
     # for older SDK versions (e.g., google-generativeai==0.3.2).
     model = genai.GenerativeModel(MODEL_NAME)
