@@ -35,7 +35,7 @@ Be enthusiastic and helpful!
 
 # Initialize the Gemini Model
 try:
-    MODEL_NAME = 'gemini-2.5-flash'
+    MODEL_NAME = 'gemini-1.5-flash'
     # Use a dummy model if the API key is missing to allow the app to run
     # FIX: The system_instruction parameter is now valid for newer SDK versions
     model = genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_PROMPT)
