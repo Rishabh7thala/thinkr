@@ -1,0 +1,56 @@
+{% extends "_layout.html" %}
+
+{% block title %}Pricing Plans{% endblock %}
+
+{% block content %}
+<main class="static-page">
+    <div class="header-section">
+        <h1 class="page-title">💰 Simple, Transparent Pricing</h1>
+        <p class="page-subtitle">Unlock more power and features as your needs grow. Start free, scale when you're ready.</p>
+    </div>
+
+    <div class="pricing-table">
+        
+        <div class="pricing-card free">
+            <h2>Free Tier ✨</h2>
+            <p class="price">$0<span class="period">/month</span></p>
+            <ul class="features">
+                <li>✅ Access to **Text Generator**</li>
+                <li>✅ **Standard Speed** Responses</li>
+                <li>✅ 1-Day Chat History</li>
+                <li>❌ Image Generation</li>
+                <li>❌ Priority Support</li>
+            </ul>
+            <a href="{{ url_for('home') }}" class="cta-button primary">Start Free Now</a>
+        </div>
+
+        <div class="pricing-card pro recommended">
+            <span class="badge">Recommended</span>
+            <h2>Pro Plan 🚀</h2>
+            <p class="price">$9.99<span class="period">/month</span></p>
+            <ul class="features">
+                <li>✅ Access to all features</li>
+                <li>✅ **Ultra-Fast** Responses (Priority queue)</li>
+                <li>✅ **Unlimited** History Retention</li>
+                <li>✅ 100 **Image Generations** / month</li>
+                <li>✅ Standard Support</li>
+            </ul>
+            <a href="#" class="cta-button secondary">Upgrade to Pro</a>
+        </div>
+
+        <div class="pricing-card enterprise">
+            <h2>Enterprise 💼</h2>
+            <p class="price">Custom<span class="period">/month</span></p>
+            <ul class="features">
+                <li>✅ **Dedicated** Gemini Model Access</li>
+                <li>✅ Custom System Prompts & Identity</li>
+                <li>✅ **Unlimited** Everything</li>
+                <li>✅ Bulk Image Generation API</li>
+                <li>✅ 24/7 **Priority** Support</li>
+            </ul>
+            <a href="#" class="cta-button tertiary">Contact Sales</a>
+        </div>
+
+    </div>
+</main>
+{% endblock %}
