@@ -1,7 +1,6 @@
-# Core dependencies
 Flask==2.3.2
 gunicorn==21.2.0
 python-dotenv==1.0.0
 requests==2.31.0
 google-generativeai==0.3.2
-Pillow==10.2.0  # <-- FIX: This line is now uncommented and required for PIL.Image
+Pillow==10.2.0
