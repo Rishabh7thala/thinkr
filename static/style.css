@@ -31,7 +31,7 @@ body {
 }
 
 .main-container:hover {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 255, 231, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 136, 255, 0.15); /* Adjusted glow color */
 }
 
 /* Sidebar / history */
@@ -42,14 +42,12 @@ body {
   background: #f8f8f8; 
   padding: 25px;
   border-right: 1px solid rgba(0, 0, 0, 0.1);
-  /* REMOVED: transform for hidden class - history is always shown now */
   display: flex;
   flex-direction: column;
 }
-/* REMOVED: .history-panel.hidden style */
 
 .history-panel h2 {
-  color: #0088ff; /* A different bright color for contrast */
+  color: #0088ff; /* Blue color */
   margin-bottom: 20px;
   font-weight: 600;
   text-shadow: 0 0 5px rgba(0, 136, 255, 0.4);
@@ -105,9 +103,9 @@ h7 {
 
 /* Specific message styles */
 .user-msg {
-  /* Kept blue/cyan gradient for contrast */
+  /* Blue gradient for user */
   background: linear-gradient(145deg, #0088ff, #0066cc);
-  color: #fff; /* White text on blue background */
+  color: #fff; 
   margin-left: auto;
   border-bottom-right-radius: 5px;
 }
@@ -155,13 +153,28 @@ h7 {
 
 /* ---- ICON STYLING ---- */
 .icon-btn {
-  /* ... (no major changes here) ... */
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 5px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 .icon-btn:hover {
-  /* ... (no major changes here) ... */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
+
+/* Style for image icons inside buttons */
 .button-icon {
-  /* ... (no major changes here) ... */
+  width: 25px; 
+  height: 25px;
+  object-fit: contain;
 }
 
 .send-btn {
@@ -176,7 +189,7 @@ h7 {
   background: #dddddd; /* Lighter mic button */
   color: #0088ff;
 }
-/* Revert mic icon filter as background is light */
+/* Revert mic icon filter as background is light, assuming OIP(3).webp is blue/black */
 .mic-btn .button-icon {
     filter: none; 
 }
@@ -186,10 +199,6 @@ h7 {
   color: #ff4d4d;
 }
 
-.history-btn {
-  background: #dddddd; /* Lighter history button */
-  color: #333;
-}
 .hidden {
   display: none !important;
 }
@@ -224,4 +233,59 @@ h7 {
 }
 ::-webkit-scrollbar-track {
   background-color: transparent;
+}
+
+/* --- NEW WELCOME SCREEN STYLES --- */
+.welcome-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 50px;
+}
+
+.welcome-content {
+    max-width: 600px;
+}
+
+.welcome-content h1 {
+    font-size: 3em;
+    color: #0088ff;
+}
+
+.welcome-content h2 {
+    font-size: 1.5em;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+.welcome-content p {
+    color: #555;
+    font-size: 1.1em;
+    margin-bottom: 40px;
+}
+
+.start-btn {
+    padding: 15px 30px;
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(145deg, #0088ff, #0066cc);
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 136, 255, 0.4);
+    transition: all 0.3s ease;
+}
+
+.start-btn:hover {
+    box-shadow: 0 6px 20px rgba(0, 136, 255, 0.6);
+    transform: translateY(-2px);
+}
+
+.chat-app {
+    display: flex;
+    height: 100%;
+    width: 100%;
 }
