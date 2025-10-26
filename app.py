@@ -5,6 +5,8 @@ from datetime import timedelta
 import io
 import google.generativeai as genai
 import PIL.Image
+# Note: To implement server-side TTS, you would need an additional library 
+# like 'gTTS' or an external TTS API. For this update, we focus on the structure.
 
 # Load environment variables
 load_dotenv()
@@ -33,8 +35,9 @@ Be enthusiastic and helpful!
 
 # Initialize the Gemini Model
 try:
-    MODEL_NAME = 'gemini-1.5-flash'
+    MODEL_NAME = 'gemini-2.5-flash'
     # Use a dummy model if the API key is missing to allow the app to run
+    # FIX: The system_instruction parameter is now valid for newer SDK versions
     model = genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_PROMPT)
 except Exception as e:
     print(f"Error initializing Gemini Model: {e}. Running with placeholder.")
@@ -53,7 +56,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "your_strong_secret_key_here")
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 
 
-# --- Helper Functions (Same as before, but critical for history management) ---
+# --- Helper Functions (No changes to logic, just history management) ---
 
 def get_history_from_session():
     """Retrieves and reconstructs the Gemini-compatible history from the Flask session."""
@@ -74,7 +77,7 @@ def add_to_session_history(role, content_parts):
     session['chat_history'] = history
     session.modified = True
 
-# --- Flask Routes for Multi-Page Structure ---
+# --- Flask Routes for Multi-Page Structure (No changes) ---
 
 @app.route("/")
 def home():
@@ -106,7 +109,7 @@ def pricing():
     """Renders the Pricing Page."""
     return render_template("pricing.html")
 
-# --- API Endpoints (Only for the Text Generator Page) ---
+# --- API Endpoints ---
 
 @app.route("/history")
 def get_history_for_display():
@@ -144,16 +147,19 @@ def ask_gemini_text():
         new_user_content = [{"text": user_message}] # Gemini 1.5 format for parts
 
         # 2. Add new user message to history (for the SDK)
+        # Note: This is an *in-memory* addition for the current API call
         history.append({"role": "user", "parts": new_user_content})
         
         # 3. Send entire history to model
         response = model.generate_content(history)
         ai_response_text = response.text
         
-        # 4. Save both user message and AI response to session (using text string for display simplicity)
+        # 4. Save both user message and AI response to session (for future memory)
         add_to_session_history("user", user_message)
         add_to_session_history("model", ai_response_text)
         
+        # 5. TTS HOOK: Return the text. The client-side script.js will convert 
+        # this text to speech using the browser's Web Speech API.
         return jsonify({"response": ai_response_text})
         
     except Exception as e:
@@ -191,6 +197,7 @@ def ask_gemini_image():
         add_to_session_history("user", f"{user_message} (Image Uploaded)")
         add_to_session_history("model", ai_response_text)
         
+        # 6. TTS HOOK: Return the text. The client-side script.js will handle TTS.
         return jsonify({"response": ai_response_text})
 
     except Exception as e:
