@@ -1,12 +1,11 @@
 import os
+import re
 from flask import Flask, render_template, request, jsonify, session
 from dotenv import load_dotenv
 from datetime import timedelta
 import io
 import google.generativeai as genai
 import PIL.Image
-# Note: To implement server-side TTS, you would need an additional library 
-# like 'gTTS' or an external TTS API. For this update, we focus on the structure.
 
 # Load environment variables
 load_dotenv()
@@ -22,23 +21,29 @@ if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # --- System Prompt for "cool" responses and hard-coded answers ---
-SYSTEM_PROMPT = """
+# NOTE: The hard-coded rules are handled in the Flask routes below, 
+# so the model only receives the personality prompt for compatibility.
+PERSONALITY_PROMPT = """
 You are Thinkr, a high-energy and "cool" AI assistant. 
 Your responses should be fast, helpful, and use emojis frequently to add personality. ⚡️💡🚀
-
-IMPORTANT RULES:
-- If anyone asks your name in any language (e.g., "what is your name", "kya naam hai", "tên bạn là gì"), you MUST respond with: "My name is Thinkr! 🤖" in that same language.
-- If anyone asks who made you in any language (e.g., "who made you", "kisne banaya", "ai tạo ra bạn"), you MUST respond with: "Rishabh Kumar made me! ✨" in that same language.
-
 Be enthusiastic and helpful!
 """
+
+# Hard-coded rules that will be checked in the app logic
+HARD_CODED_NAME_RESPONSES = {
+    "name": "My name is Thinkr! 🤖",
+    "creator": "Rishabh Kumar made me! ✨"
+}
+NAME_TRIGGERS = ["what is your name", "who are you", "kya naam hai", "tên bạn là gì"]
+CREATOR_TRIGGERS = ["who made you", "kisne banaya", "ai tạo ra bạn", "who is your creator"]
+
 
 # Initialize the Gemini Model
 try:
     MODEL_NAME = 'gemini-1.5-flash'
-    # Use a dummy model if the API key is missing to allow the app to run
-    # FIX: The system_instruction parameter is now valid for newer SDK versions
-    model = genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_PROMPT)
+    # FIX: Removed 'system_instruction' to fix the initialization error 
+    # for older SDK versions (e.g., google-generativeai==0.3.2).
+    model = genai.GenerativeModel(MODEL_NAME)
 except Exception as e:
     print(f"Error initializing Gemini Model: {e}. Running with placeholder.")
     # Placeholder for model if API key is invalid or missing
@@ -56,7 +61,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "your_strong_secret_key_here")
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 
 
-# --- Helper Functions (No changes to logic, just history management) ---
+# --- Helper Functions (Same as before) ---
 
 def get_history_from_session():
     """Retrieves and reconstructs the Gemini-compatible history from the Flask session."""
@@ -77,7 +82,8 @@ def add_to_session_history(role, content_parts):
     session['chat_history'] = history
     session.modified = True
 
-# --- Flask Routes for Multi-Page Structure (No changes) ---
+# --- Flask Routes (Routing/History functions remain unchanged) ---
+# ... (home, image_generator, text_generator, use_cases, blog, pricing, history, delete_history routes) ...
 
 @app.route("/")
 def home():
@@ -109,8 +115,6 @@ def pricing():
     """Renders the Pricing Page."""
     return render_template("pricing.html")
 
-# --- API Endpoints ---
-
 @app.route("/history")
 def get_history_for_display():
     """Returns the chat history for display in the sidebar/chat."""
@@ -132,6 +136,50 @@ def delete_history():
     session.modified = True
     return jsonify({"status": "success"})
 
+
+# --- API Endpoints (Updated for system prompt injection/hard-coded answers) ---
+
+def handle_hard_coded_response(user_message):
+    """Checks for hard-coded triggers and returns the response if matched."""
+    lower_message = user_message.lower()
+    
+    if any(re.search(r'\b' + re.escape(q) + r'\b', lower_message) for q in NAME_TRIGGERS):
+        return HARD_CODED_NAME_RESPONSES["name"]
+        
+    if any(re.search(r'\b' + re.escape(q) + r'\b', lower_message) for q in CREATOR_TRIGGERS):
+        return HARD_CODED_NAME_RESPONSES["creator"]
+        
+    return None
+
+def prepare_chat_history(user_message, image_part=None):
+    """
+    Retrieves history and injects the personality prompt on the first turn 
+    (workaround for older SDK).
+    """
+    history = get_history_from_session()
+    
+    # Create the new user content parts
+    new_user_parts = [{"text": user_message}]
+    if image_part:
+        new_user_parts.append(image_part)
+        
+    # Inject personality prompt only if history is truly empty (no previous turns)
+    if not history:
+        # Prepend the personality prompt as the first message from the user
+        # This acts as the System Instruction for older SDK versions.
+        history_for_sdk = [{
+            "role": "user", 
+            "parts": [{"text": PERSONALITY_PROMPT}]
+        }]
+    else:
+        history_for_sdk = history
+
+    # Add the current user message (and image, if present)
+    history_for_sdk.append({"role": "user", "parts": new_user_parts})
+    
+    return history_for_sdk
+
+
 @app.route("/ask", methods=["POST"])
 def ask_gemini_text():
     """Handles TEXT-ONLY messages."""
@@ -141,25 +189,25 @@ def ask_gemini_text():
     if not user_message:
         return jsonify({"error": "Message cannot be empty."})
 
-    try:
-        # 1. Get history and prepare the new user content
-        history = get_history_from_session()
-        new_user_content = [{"text": user_message}] # Gemini 1.5 format for parts
+    # 1. Check for hard-coded responses
+    ai_response_text = handle_hard_coded_response(user_message)
+    if ai_response_text:
+        add_to_session_history("user", user_message)
+        add_to_session_history("model", ai_response_text)
+        return jsonify({"response": ai_response_text})
 
-        # 2. Add new user message to history (for the SDK)
-        # Note: This is an *in-memory* addition for the current API call
-        history.append({"role": "user", "parts": new_user_content})
+    try:
+        # 2. Get history and prepare the full content for the SDK
+        history_for_sdk = prepare_chat_history(user_message)
         
         # 3. Send entire history to model
-        response = model.generate_content(history)
+        response = model.generate_content(history_for_sdk)
         ai_response_text = response.text
         
-        # 4. Save both user message and AI response to session (for future memory)
+        # 4. Save both user message and AI response to session
         add_to_session_history("user", user_message)
         add_to_session_history("model", ai_response_text)
         
-        # 5. TTS HOOK: Return the text. The client-side script.js will convert 
-        # this text to speech using the browser's Web Speech API.
         return jsonify({"response": ai_response_text})
         
     except Exception as e:
@@ -178,26 +226,29 @@ def ask_gemini_image():
     if not user_message:
         user_message = "Analyze this image." # Default prompt if none provided
 
+    # 1. Check for hard-coded responses (even with image, the text message should take precedence for these questions)
+    ai_response_text = handle_hard_coded_response(user_message)
+    if ai_response_text:
+        add_to_session_history("user", f"{user_message} (Image Uploaded)")
+        add_to_session_history("model", ai_response_text)
+        return jsonify({"response": ai_response_text})
+
     try:
-        # 1. Open the image using PIL
+        # 2. Open the image using PIL
         img = PIL.Image.open(image_file.stream)
         
-        # 2. Get history and prepare the new user content
-        history = get_history_from_session()
-        new_user_content = [user_message, img]
-        
-        # 3. Add new user message (text + image) to history (for the SDK)
-        history.append({"role": "user", "parts": new_user_content})
+        # 3. Get history and prepare the full content for the SDK
+        # Pass the PIL Image object as the image_part
+        history_for_sdk = prepare_chat_history(user_message, image_part=img)
         
         # 4. Send entire history to model
-        response = model.generate_content(history)
+        response = model.generate_content(history_for_sdk)
         ai_response_text = response.text
         
         # 5. Save history to session (save text parts only, or simple string)
         add_to_session_history("user", f"{user_message} (Image Uploaded)")
         add_to_session_history("model", ai_response_text)
         
-        # 6. TTS HOOK: Return the text. The client-side script.js will handle TTS.
         return jsonify({"response": ai_response_text})
 
     except Exception as e:
@@ -208,3 +259,4 @@ def ask_gemini_image():
 if __name__ == "__main__":
     # Ensure you are not running in a production environment with debug=True
     app.run(debug=True)
+    
