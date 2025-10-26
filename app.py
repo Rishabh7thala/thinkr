@@ -1,14 +1,10 @@
 import os
-import json
-import time # Added for history timestamp
 from flask import Flask, render_template, request, jsonify, session
 from dotenv import load_dotenv
-
+from datetime import timedelta
+import io
 import google.generativeai as genai
-from google.generativeai.errors import APIError
-
-import requests
-from googletrans import Translator # Added for language-aware personality features
+import PIL.Image
 
 # Load environment variables
 load_dotenv()
@@ -16,221 +12,192 @@ load_dotenv()
 # --- Configuration ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY not found in environment variables.")
+    # In a real app, this should exit or log, but for code-only delivery, we'll let it pass
+    print("Warning: GEMINI_API_KEY not found. API calls will fail.")
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Configure GenAI (handle case where key might be missing for code display)
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-# Initialize Translator
-translator = Translator()
+# --- System Prompt for "cool" responses and hard-coded answers ---
+SYSTEM_PROMPT = """
+You are Thinkr, a high-energy and "cool" AI assistant. 
+Your responses should be fast, helpful, and use emojis frequently to add personality. ⚡️💡🚀
+
+IMPORTANT RULES:
+- If anyone asks your name in any language (e.g., "what is your name", "kya naam hai", "tên bạn là gì"), you MUST respond with: "My name is Thinkr! 🤖" in that same language.
+- If anyone asks who made you in any language (e.g., "who made you", "kisne banaya", "ai tạo ra bạn"), you MUST respond with: "Rishabh Kumar made me! ✨" in that same language.
+
+Be enthusiastic and helpful!
+"""
 
 # Initialize the Gemini Model
 try:
-    MODEL_NAME = 'gemini-2.5-flash'
-    model = genai.GenerativeModel(MODEL_NAME)
-    
-    # A simple chat session placeholder that can be quickly initialized
-    def get_chat_session():
-        # Start a new chat with no history for fast, single-turn responses
-        return model.start_chat(history=[]) 
-
-except APIError as e:
-    print(f"Error initializing Gemini Model: {e}")
-    exit(1)
+    MODEL_NAME = 'gemini-1.5-flash'
+    # Use a dummy model if the API key is missing to allow the app to run
+    model = genai.GenerativeModel(MODEL_NAME, system_instruction=SYSTEM_PROMPT)
+except Exception as e:
+    print(f"Error initializing Gemini Model: {e}. Running with placeholder.")
+    # Placeholder for model if API key is invalid or missing
+    class PlaceholderModel:
+        def generate_content(self, history):
+            class PlaceholderResponse:
+                text = "🤖 I'm Thinkr! I need a valid Gemini API key to give cool answers. Rishabh Kumar, please check my config! 🛠️"
+            return PlaceholderResponse()
+    model = PlaceholderModel()
 
 
 app = Flask(__name__)
-# IMPORTANT: Replace the default key below with a strong, complex, random string in a production environment
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "super_secret_thinkr_key") 
+# IMPORTANT: Set secret key and permanent session lifetime for 1-day history
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "your_strong_secret_key_here")
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 
-NANO_BANANA_API_URL = os.getenv("NANO_BANANA_URL", "http://localhost:8080/generate")
 
-# --- Helper Functions ---
-def add_to_session_history(sender, text):
-    """Adds a message/item to the custom history stored in the Flask session with a timestamp."""
-    if 'custom_history' not in session:
-        session['custom_history'] = []
-    
-    # Add a timestamp (in seconds since epoch)
-    session['custom_history'].append({"sender": sender, "text": text, "timestamp": time.time()})
+# --- Helper Functions (Same as before, but critical for history management) ---
+
+def get_history_from_session():
+    """Retrieves and reconstructs the Gemini-compatible history from the Flask session."""
+    session.permanent = True # Ensure session lasts for 1 day
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+    # History elements are stored as dicts: {"role": "...", "parts": ["..."]}
+    return session.get('chat_history', [])
+
+def add_to_session_history(role, content_parts):
+    """Adds a message/content to the history in the Flask session."""
+    history = get_history_from_session()
+    # Ensure content_parts is a list of strings or text/image dicts for session storage
+    if isinstance(content_parts, str):
+        content_parts = [content_parts]
+        
+    history.append({"role": role, "parts": content_parts})
+    session['chat_history'] = history
     session.modified = True
 
-def clean_old_history(expiry_hours=24):
-    """Removes history entries older than expiry_hours (1 day by default)."""
-    if 'custom_history' in session:
-        # Calculate the cutoff time (24 hours ago)
-        cutoff_time = time.time() - (expiry_hours * 3600)
-        
-        # Filter out old messages
-        session['custom_history'] = [
-            item for item in session['custom_history'] 
-            if item.get("timestamp", 0) >= cutoff_time
-        ]
-        session.modified = True
+# --- Flask Routes for Multi-Page Structure ---
 
-def is_image_request(message):
-    """Simple check to determine if the message is a request for image generation."""
-    return any(keyword in message.lower() for keyword in ["generate image", "create image", "draw", "make a picture of"])
-
-def check_for_personality_query(message):
-    """Checks for name or maker queries and returns a translated hardcoded response."""
-    
-    # Detect language of the incoming message
-    try:
-        lang_code = translator.detect(message).lang
-    except Exception:
-        lang_code = 'en' # Default to English on error
-
-    message_lower = message.lower()
-    
-    # 1. Who made you?
-    if any(keyword in message_lower for keyword in ["who made you", "who is your creator", "who developed you", "tumhe kisne banaya"]):
-        maker_name = "Rishabh Kumar"
-        response_en = f"{maker_name} made me 🧑‍💻. I am his creation!"
-        
-        try:
-            translation = translator.translate(response_en, dest=lang_code)
-            return translation.text
-        except Exception:
-            return response_en
-    
-    # 2. What is your name?
-    if any(keyword in message_lower for keyword in ["what is your name", "your name", "who are you", "tumhara naam kya hai"]):
-        name_en = "My name is Thinkr"
-        
-        try:
-            translation = translator.translate(name_en, dest=lang_code)
-            return translation.text
-        except Exception:
-            return name_en
-
-    return None
-
-def cool_text_wrapper(text):
-    """Wraps the AI text response with fun emojis."""
-    emojis = ["✨", "💡", "🧠", "✅", "👍", "💬", "😊", "🔥", "🚀"]
-    import random
-    start_emoji = random.choice(emojis)
-    end_emoji = random.choice(emojis)
-    return f"{start_emoji} {text} {end_emoji}"
-
-# --- Flask Routes ---
 @app.route("/")
-def index():
-    # Clean history on every page load
-    clean_old_history()
-    return render_template("index.html")
+def home():
+    """Renders the Home Page."""
+    return render_template("home.html")
+
+@app.route("/image-generator")
+def image_generator():
+    """Renders the Image Generator Page."""
+    return render_template("image_generator.html")
+
+@app.route("/text-generator")
+def text_generator():
+    """Renders the Text Generator (Chat) Page."""
+    return render_template("text_generator.html")
+
+@app.route("/use-cases")
+def use_cases():
+    """Renders the Use Cases Page."""
+    return render_template("use_cases.html")
+
+@app.route("/blog")
+def blog():
+    """Renders the Blog Page."""
+    return render_template("blog.html")
+
+@app.route("/pricing")
+def pricing():
+    """Renders the Pricing Page."""
+    return render_template("pricing.html")
+
+# --- API Endpoints (Only for the Text Generator Page) ---
 
 @app.route("/history")
-def get_history():
-    """Returns the custom chat history."""
-    # Ensure history is clean before sending
-    clean_old_history()
-    return jsonify(session.get('custom_history', []))
+def get_history_for_display():
+    """Returns the chat history for display in the sidebar/chat."""
+    history_for_js = []
+    gemini_history = get_history_from_session()
+    
+    for item in gemini_history:
+        sender = "ai" if item["role"] == "model" else "user"
+        # Extract and join text parts for display
+        text_content = " ".join(part for part in item["parts"] if isinstance(part, str))
+        history_for_js.append({"sender": sender, "text": text_content})
+        
+    return jsonify(history_for_js)
 
 @app.route("/delete-history", methods=["POST"])
 def delete_history():
-    """Clears both the custom history and resets the chat state."""
-    session.pop('custom_history', None)
+    """Clears the chat history from the session."""
+    session.pop('chat_history', None)
     session.modified = True
     return jsonify({"status": "success"})
 
 @app.route("/ask", methods=["POST"])
-def ask_gemini():
-    """
-    Handles the user's text message.
-    1. Checks for hardcoded personality response.
-    2. Checks if the message is an image request.
-    3. If text request, calls the Gemini API.
-    """
+def ask_gemini_text():
+    """Handles TEXT-ONLY messages."""
     data = request.get_json()
     user_message = data.get("message", "").strip()
 
     if not user_message:
         return jsonify({"error": "Message cannot be empty."})
 
-    # Add user message to history immediately
-    add_to_session_history("user", user_message)
-
-    # 1. Check for Personality Query (Very Fast Response)
-    personality_response = check_for_personality_query(user_message)
-    if personality_response:
-        # Wrap response
-        final_response = cool_text_wrapper(personality_response)
-        add_to_session_history("ai", final_response)
-        return jsonify({
-            "type": "text",
-            "response": final_response
-        })
-
-    # 2. Check for Image Request
-    if is_image_request(user_message):
-        image_prompt = user_message.replace("generate image of", "").strip()
-        # Instruct the frontend to call the dedicated image API route
-        return jsonify({
-            "type": "image",
-            "prompt": image_prompt
-        })
-
-    # 3. Handle Text Request via Gemini
     try:
-        # Use a fresh chat session for speed
-        chat = get_chat_session() 
-        response = chat.send_message(user_message)
+        # 1. Get history and prepare the new user content
+        history = get_history_from_session()
+        new_user_content = [{"text": user_message}] # Gemini 1.5 format for parts
+
+        # 2. Add new user message to history (for the SDK)
+        history.append({"role": "user", "parts": new_user_content})
         
-        # Wrap response
-        final_response = cool_text_wrapper(response.text)
+        # 3. Send entire history to model
+        response = model.generate_content(history)
+        ai_response_text = response.text
         
-        # Add to history
-        add_to_session_history("ai", final_response)
+        # 4. Save both user message and AI response to session (using text string for display simplicity)
+        add_to_session_history("user", user_message)
+        add_to_session_history("model", ai_response_text)
         
-        return jsonify({
-            "type": "text",
-            "response": final_response
-        })
-    except APIError as e:
-        return jsonify({"error": f"Gemini API Error: {e}"})
+        return jsonify({"response": ai_response_text})
+        
     except Exception as e:
         return jsonify({"error": f"An unexpected error occurred: {e}"})
 
-@app.route("/generate-image-api", methods=["POST"])
-def generate_image_route():
-    """
-    Handles the image generation API call to the Nano Banana API.
-    (Assumes this service is running separately)
-    """
-    data = request.get_json()
-    image_prompt = data.get("prompt", "")
 
-    if not image_prompt:
-        return jsonify({"error": "Image prompt cannot be empty."})
+@app.route("/ask_with_image", methods=["POST"])
+def ask_gemini_image():
+    """Handles MULTIMODAL (text + image) messages."""
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file found."})
+
+    image_file = request.files['image']
+    user_message = request.form.get("message", "").strip()
+
+    if not user_message:
+        user_message = "Analyze this image." # Default prompt if none provided
 
     try:
-        # Call the external image generation service (Nano Banana placeholder)
-        res = requests.post(
-            NANO_BANANA_API_URL, 
-            json={"prompt": image_prompt, "api_key": os.getenv("NANO_BANANA_API_KEY")}
-        )
-        res.raise_for_status() # Raise exception for bad status codes (4xx or 5xx)
-        image_data = res.json()
+        # 1. Open the image using PIL
+        img = PIL.Image.open(image_file.stream)
         
-        image_url = image_data.get("image_url") # Assuming the external API returns an 'image_url'
+        # 2. Get history and prepare the new user content
+        history = get_history_from_session()
+        new_user_content = [user_message, img]
+        
+        # 3. Add new user message (text + image) to history (for the SDK)
+        history.append({"role": "user", "parts": new_user_content})
+        
+        # 4. Send entire history to model
+        response = model.generate_content(history)
+        ai_response_text = response.text
+        
+        # 5. Save history to session (save text parts only, or simple string)
+        add_to_session_history("user", f"{user_message} (Image Uploaded)")
+        add_to_session_history("model", ai_response_text)
+        
+        return jsonify({"response": ai_response_text})
 
-        if image_url:
-            # Save a special structured object to history to handle image display in script.js
-            history_item = {
-                "prompt": image_prompt,
-                "image_url": image_url
-            }
-            add_to_session_history("image", history_item)
-            
-            return jsonify({"image_url": image_url})
-        else:
-            return jsonify({"error": "Image generation failed: No URL returned."})
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to connect to image API: {e}"})
     except Exception as e:
-        return jsonify({"error": f"Image generation failed: {e}"})
+        print(f"Error in /ask_with_image: {e}")
+        return jsonify({"error": f"An error occurred processing the image: {e}"})
+
 
 if __name__ == "__main__":
+    # Ensure you are not running in a production environment with debug=True
     app.run(debug=True)
