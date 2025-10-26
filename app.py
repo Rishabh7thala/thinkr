@@ -89,7 +89,7 @@ def image_generator():
 @app.route("/text-generator")
 def text_generator():
     """Renders the Text Generator (Chat) Page."""
-    return render_template("text_generator.html")
+    return render_template("index.html")
 
 @app.route("/use-cases")
 def use_cases():
