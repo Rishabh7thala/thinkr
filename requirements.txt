@@ -1,12 +1,7 @@
-# --- Core dependencies ---
+# Core dependencies
 Flask==2.3.2
 gunicorn==21.2.0
 python-dotenv==1.0.0
-
-# --- Optional utilities ---
 requests==2.31.0
-
-# --- Google Gemini SDK ---
-# Avoid old versions that lack latest model and error handling
-google-generativeai>=0.5.2
-
+google-generativeai==0.3.2
+Pillow==10.2.0  # <-- FIX: This line is now uncommented and required for PIL.Image
