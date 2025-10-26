@@ -1,56 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Thinkr - Your AI Assistant</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-</head>
-<body>
-  <div class="main-container">
+{% extends "_layout.html" %}
 
-    <div id="welcome-screen" class="welcome-screen">
-        <div class="welcome-content">
-            <h1>Welcome to ⚡ Thinkr!</h1>
-            <h2>My AI Feature: Fast Chat & Image Generation</h2>
-            <p>I am an advanced AI assistant powered by Google's Gemini. I can give you quick, creative answers and even generate custom images.</p>
-            <button class="start-btn" onclick="startChat()">🚀 Start Now</button>
+{% block title %}Text Generator | AI Chat & Content{% endblock %}
+
+{% block content %}
+<div class="main-container chat-page-container">
+    <div id="history-panel" class="history-panel">
+        <h2>History <span onclick="toggleHistory()" class="close-history">✕</span></h2>
+        <div id="history-box">
         </div>
+        <button class="icon-btn delete-btn" onclick="deleteHistory()">🗑️ Clear History</button>
     </div>
-    
-    <div id="chat-app" class="chat-app hidden">
-        <div id="history-panel" class="history-panel">
-          <h2>History</h2>
-          <div id="history-box">
+
+    <div class="chat-container">
+        <div class="header-bar">
+            <h1>⚡ Thinkr AI Chat</h1>
+            <div class="control-group">
+                <label for="voice-select">Voice:</label>
+                <select id="voice-select" title="Select AI Voice"></select>
+                <button class="icon-btn history-btn mobile-only" onclick="toggleHistory()">📚</button>
             </div>
         </div>
 
-        <div class="chat-container">
-          <h1>⚡ Thinkr - Your AI Assistant</h1>
-          <h7>made by Rishabh</h7>
-          <div id="chat-box">
+        <div id="chat-box">
+            <div class="message ai-msg">
+                <span>Hello! I'm Thinkr, an ultra-fast AI made by Rishabh Kumar. Ask me anything! 🚀</span>
+                <span class="speaker-icon" onclick="speakMessage(this)">🔊</span>
             </div>
+        </div>
 
-          <div class="search-bar">
-              <input type="text" id="userInput" placeholder="💡 Ask Thinkr anything..." onkeydown="if(event.key==='Enter'){sendMessage();}">
-              
-              <button class="icon-btn send-btn" onclick="sendMessage()">
-                  <img src="{{ url_for('static', filename='th.webp') }}" alt="Send" class="button-icon">
-              </button>
-              
-              <button class="icon-btn stop-btn hidden" onclick="stopResponding()">⏹️</button>
-              
-              <button class="icon-btn mic-btn" onclick="startListening()">
-                  <img src="{{ url_for('static', filename='OIP (3).webp') }}" alt="Mic" class="button-icon">
-              </button>
-              
-              <button class="icon-btn delete-btn" onclick="deleteHistory()">🗑️</button>
-          </div>
+        <div class="search-bar">
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            
+            <button class="icon-btn file-btn" onclick="triggerFileInput()" title="Upload Image">📎</button>
+            
+            <input type="text" id="userInput" placeholder="💡 Ask Thinkr anything (or upload an image)..." onkeydown="if(event.key==='Enter'){sendMessage();}">
+            
+            <button class="icon-btn send-btn" onclick="sendMessage()">
+                <img src="{{ url_for('static', filename='th.webp') }}" alt="Send" class="button-icon">
+            </button>
+            
+            <button class="icon-btn stop-btn hidden" onclick="stopResponding()">⏹️</button>
+            
+            <button class="icon-btn mic-btn" onclick="startListening()">
+                <img src="{{ url_for('static', filename='OIP (3).webp') }}" alt="Mic" class="button-icon">
+            </button>
         </div>
     </div>
-  </div>
+</div>
+{% endblock %}
 
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-</html>
+{% block scripts %}
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+{% endblock %}
