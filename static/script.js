@@ -1,256 +1,346 @@
-// Global state flag
+// --- Globals ---
 let isResponding = false;
-let stopFlag = false;
+let currentUploadedFile = null;
+const synth = window.speechSynthesis;
+let voices = [];
 
-// Append message to the main chat box
-function appendMessage(sender, text, isHistory = false, className = '') {
-  const chatBox = document.getElementById("chat-box");
-  const historyBox = document.getElementById("history-box");
+// --- AI Voice (TTS) Functions ---
 
-  const msg = document.createElement("div");
-  msg.className = `message ${className}`;
-  msg.innerText = text;
+function loadVoices() {
+    const voiceSelect = document.getElementById("voice-select");
+    if (!voiceSelect) return;
 
-  if (sender === "user") {
-    msg.classList.add("user-msg");
-  } else {
-    msg.classList.add("ai-msg");
-  }
-
-  // Append to the appropriate box
-  if (!isHistory) {
-    chatBox.appendChild(msg);
-    chatBox.scrollTop = chatBox.scrollHeight;
-    return msg; // Return the created message element for modification
-  } else {
-    // History messages are prepended for chronological order in the history panel
-    // but for simplicity and to match previous code, they are appended here.
-    historyBox.appendChild(msg);
-    historyBox.scrollTop = historyBox.scrollHeight;
-  }
-}
-
-// Append image to the main chat box
-function appendImage(sender, imageUrl, isHistory = false) {
-    const chatBox = document.getElementById("chat-box");
-    const historyBox = document.getElementById("history-box");
-    
-    // Create a container message for the image
-    const msg = document.createElement("div");
-    msg.className = `message ${sender === "user" ? "user-msg" : "ai-msg"}`;
-    
-    // Create the image element
-    const img = document.createElement("img");
-    img.src = imageUrl;
-    img.alt = "Generated Image";
-    img.className = "image-message";
-    
-    msg.appendChild(img);
-    
-    // Append to the appropriate box
-    if (!isHistory) {
-        chatBox.appendChild(msg);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    } else {
-        historyBox.appendChild(msg);
-        historyBox.scrollTop = historyBox.scrollHeight;
-    }
-}
-
-// --- NEW FUNCTION: Start Chat ---
-function startChat() {
-    document.getElementById("welcome-screen").classList.add("hidden");
-    document.getElementById("chat-app").classList.remove("hidden");
-    // Initial welcome message
-    appendMessage("ai", "👋 Hello! I'm Thinkr, your Gemini AI assistant. What can I help you create or answer today? 🚀");
-}
-
-
-// Function to send message to the backend
-async function sendMessage() {
-  const userInput = document.getElementById("userInput");
-  const message = userInput.value.trim();
-  if (!message || isResponding) return;
-
-  // Clear input and append user message
-  userInput.value = "";
-  appendMessage("user", message);
-
-  // Set state
-  isResponding = true;
-  stopFlag = false;
-  document.querySelector(".send-btn").classList.add("hidden");
-  document.querySelector(".stop-btn").classList.remove("hidden");
-  
-  // Display typing indicator
-  const typingMsg = appendMessage("ai", "💡 Thinkr is generating...", false, "ai-typing");
-
-  try {
-    const res = await fetch("/ask", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message: message }),
-    });
-
-    const data = await res.json();
-    
-    // Remove typing indicator
-    if (typingMsg) typingMsg.remove(); 
-
-    if (data.error) {
-        appendMessage("ai", `❌ Error: ${data.error}`);
-    } else if (data.type === "image") {
-        // Handle image generation request
-        await handleImageGeneration(data.prompt);
-    } else if (data.type === "text" && !stopFlag) {
-        // Handle normal text response
-        appendMessage("ai", data.response);
-        // Reload history to ensure the new messages are displayed in the sidebar
-        loadHistory(); 
-    }
-
-  } catch (error) {
-    if (typingMsg) typingMsg.remove();
-    appendMessage("ai", `🚨 Network Error: ${error.message}`);
-  } finally {
-    // Reset state
-    isResponding = false;
-    document.querySelector(".send-btn").classList.remove("hidden");
-    document.querySelector(".stop-btn").classList.add("hidden");
-  }
-}
-
-// Separate function to handle image generation process
-async function handleImageGeneration(prompt) {
-    const loadingMsg = appendMessage("ai", `🎨 Generating image for prompt: "${prompt}"... This may take a moment.`, false, "ai-typing");
-    
-    try {
-        const imageRes = await fetch("/generate-image-api", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: prompt }),
-        });
-
-        const imageData = await imageRes.json();
-        
-        if (loadingMsg) loadingMsg.remove();
-        
-        if (imageData.error) {
-            appendMessage("ai", `🖼️ Image Error: ${imageData.error}`);
-        } else if (imageData.image_url && !stopFlag) {
-            appendMessage("ai", `🖼️ Image successfully generated!`);
-            appendImage("ai", imageData.image_url);
-            loadHistory(); // Reload history with image
+    synth.onvoiceschanged = () => {
+        voices = synth.getVoices();
+        if (voices.length === 0) {
+            voiceSelect.innerHTML = '<option value="">No voices available</option>';
+            return;
         }
 
-    } catch (error) {
-        if (loadingMsg) loadingMsg.remove();
-        appendMessage("ai", `🚨 Image Network Error: ${error.message}`);
+        voiceSelect.innerHTML = '';
+        
+        let foundVoices = { female: [], male: [] };
+
+        // 1. Prioritize finding 2 male and 2 female English voices
+        for (const voice of voices) {
+            if (voice.lang.startsWith('en-') && !voice.name.includes('WaveNet')) {
+                 const isFemale = voice.name.includes('Female') || voice.gender === 'female' || voice.name.includes('Google UK English');
+                 const isMale = voice.name.includes('Male') || voice.gender === 'male' || voice.name.includes('Google US English');
+                 
+                 if (isFemale && foundVoices.female.length < 2) {
+                    foundVoices.female.push(voice);
+                } else if (isMale && foundVoices.male.length < 2) {
+                    foundVoices.male.push(voice);
+                }
+            }
+        }
+        
+        // 2. Add to dropdown
+        const allFound = [...foundVoices.female, ...foundVoices.male];
+        if (allFound.length === 0) {
+             voiceSelect.innerHTML = '<option value="">Select Voice</option>';
+        }
+
+        allFound.forEach(voice => {
+            const option = document.createElement('option');
+            option.textContent = `${voice.name.split(' ').slice(0, 3).join(' ')} (${voice.gender || 'neutral'})`;
+            option.setAttribute('data-name', voice.name);
+            voiceSelect.appendChild(option);
+        });
+        
+        if (allFound.length > 0) {
+            // Select the first voice by default
+            voiceSelect.selectedIndex = 0;
+        }
+    };
+
+    // If voices are already loaded, trigger the handler immediately
+    if (synth.getVoices().length > 0) {
+        synth.onvoiceschanged();
     }
 }
 
+function speakMessage(iconElement) {
+    const messageElement = iconElement.closest('.ai-msg');
+    // Get the text from the internal span
+    const textToSpeak = messageElement.querySelector('span:not(.speaker-icon)').innerText; 
+    
+    if (synth.speaking) {
+        synth.cancel();
+    }
 
-// Function to stop generating response (currently only stops image generation if in progress)
-function stopResponding() {
-  stopFlag = true;
-  // Note: Stopping the Gemini API response mid-flight requires more complex server-side streaming logic
-  // For now, this just stops the client-side processing/display.
-  const typingIndicator = document.querySelector(".ai-typing");
-  if(typingIndicator) typingIndicator.remove();
-  
-  // Reset state
-  isResponding = false;
-  document.querySelector(".send-btn").classList.remove("hidden");
-  document.querySelector(".stop-btn").classList.add("hidden");
-  appendMessage("ai", "⏹️ Response stopped by user.");
+    if (textToSpeak) {
+        const utterThis = new SpeechSynthesisUtterance(textToSpeak);
+        const voiceSelect = document.getElementById("voice-select");
+        
+        if (voiceSelect && voiceSelect.options.length > 0) {
+            const selectedOption = voiceSelect.options[voiceSelect.selectedIndex];
+            const voiceName = selectedOption.getAttribute('data-name');
+            const selectedVoice = voices.find(v => v.name === voiceName);
+            if (selectedVoice) {
+                utterThis.voice = selectedVoice;
+            }
+        }
+        
+        synth.speak(utterThis);
+    }
 }
 
+// --- Chat & DOM Functions ---
 
-// Load and display chat history
-async function loadHistory() {
-  const historyBox = document.getElementById("history-box");
-  historyBox.innerHTML = ""; // Clear existing history before loading
-  const res = await fetch("/history");
-  const data = await res.json();
-  data.forEach(item => {
-    // Check if the history item is the structured format for an image
-    if (item.sender === "image" && item.text && item.text.image_url) {
-        // Reconstruct user prompt message for clarity in history
-        const promptText = `Generate image of: "${item.text.prompt}" 🖼️`;
-        appendMessage("user", promptText, true);
-        // Display the image
-        appendImage("ai", item.text.image_url, true);
+/**
+ * Appends a message to the chat box.
+ * @param {string} sender - 'user' or 'ai'
+ * @param {string} text - The text content of the message.
+ * @param {string} imageUrl - (Optional) URL of an image to display (for user uploads).
+ */
+function appendMessage(sender, text, imageUrl = null) {
+    const chatBox = document.getElementById("chat-box");
+    if (!chatBox) return null; // Exit if not on the chat page
+
+    const msg = document.createElement("div");
+    msg.className = `message`;
+
+    if (sender === "user") {
+        msg.classList.add("user-msg");
+        // Use innerHTML to allow for a line break if showing an image
+        msg.innerHTML = `<span>${text}</span>`;
+        
+        if (imageUrl) {
+            const img = document.createElement("img");
+            img.src = imageUrl;
+            img.alt = "Uploaded image";
+            msg.appendChild(img);
+        }
     } else {
-        // Regular text message
-        appendMessage(item.sender, item.text, true);
+        msg.classList.add("ai-msg");
+        const textSpan = document.createElement('span');
+        textSpan.innerText = text;
+        
+        // Add the speaker icon for AI messages
+        const speakerIcon = document.createElement('span');
+        speakerIcon.className = 'speaker-icon';
+        speakerIcon.innerHTML = '🔊';
+        speakerIcon.title = 'Read aloud';
+        // Note: The click handler is set dynamically here
+        speakerIcon.onclick = () => speakMessage(speakerIcon);
+        
+        msg.appendChild(textSpan);
+        msg.appendChild(speakerIcon);
     }
-  });
+
+    chatBox.appendChild(msg);
+    chatBox.scrollTop = chatBox.scrollHeight;
+    return msg;
 }
 
-// Delete all chat history
-async function deleteHistory() {
-    if (!confirm("Are you sure you want to delete ALL chat history?")) {
+function showTypingIndicator() {
+    const chatBox = document.getElementById("chat-box");
+    if (!chatBox) return;
+    let indicator = document.querySelector(".ai-typing");
+    if (!indicator) {
+        indicator = document.createElement("div");
+        indicator.className = "message ai-msg ai-typing";
+        // Put text inside span for consistency, remove speaker icon
+        indicator.innerHTML = "<span>... Thinking fast ⚡</span>"; 
+        chatBox.appendChild(indicator);
+    }
+    return indicator;
+}
+
+function removeTypingIndicator() {
+    const indicator = document.querySelector(".ai-typing");
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+// --- File Upload Functions ---
+function triggerFileInput() {
+    const fileInput = document.getElementById("fileInput");
+    if(fileInput) fileInput.click();
+}
+
+function clearFileInput() {
+    const fileInput = document.getElementById("fileInput");
+    const userInput = document.getElementById("userInput");
+    currentUploadedFile = null;
+    if(fileInput) fileInput.value = null; 
+    if(userInput) userInput.placeholder = "💡 Ask Thinkr anything (or upload an image)...";
+}
+
+// Event listener for file selection
+document.addEventListener('DOMContentLoaded', () => {
+    const fileInput = document.getElementById("fileInput");
+    const userInput = document.getElementById("userInput");
+    if (fileInput && userInput) {
+        fileInput.onchange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                currentUploadedFile = file;
+                userInput.placeholder = `📎 Image selected: ${file.name}. Enter a prompt...`;
+            }
+        };
+    }
+});
+
+
+// --- Core Communication Functions ---
+
+async function sendMessage() {
+    const userInput = document.getElementById("userInput");
+    if (isResponding || !userInput) return;
+
+    const message = userInput.value.trim();
+    const file = currentUploadedFile;
+
+    if (!message && !file) {
+        alert("Please enter a message or select a file. 🧐");
         return;
     }
+
+    isResponding = true;
+    document.querySelector(".send-btn").classList.add("hidden");
+    document.querySelector(".stop-btn").classList.remove("hidden");
+
+    let userMessageElement;
+    
+    if (file) {
+        const objectURL = URL.createObjectURL(file);
+        // Show text and the image thumbnail in the user message
+        userMessageElement = appendMessage("user", message || "Image Uploaded", objectURL);
+    } else {
+        userMessageElement = appendMessage("user", message);
+    }
+
+    const typingIndicator = showTypingIndicator();
+    userInput.value = ""; // Clear text input
+
     try {
+        let responseText = "⚠️ Error: No response from server.";
+        let endpoint = file ? "/ask_with_image" : "/ask";
+        let fetchOptions = { method: "POST" };
+
+        if (file) {
+            const formData = new FormData();
+            formData.append("message", message);
+            formData.append("image", file);
+            fetchOptions.body = formData;
+        } else {
+            fetchOptions.headers = { "Content-Type": "application/json" };
+            fetchOptions.body = JSON.stringify({ message: message });
+        }
+
+        const res = await fetch(endpoint, fetchOptions);
+        const data = await res.json();
+        responseText = data.response || data.error;
+
+        removeTypingIndicator();
+        appendMessage("ai", responseText);
+
+    } catch (err) {
+        removeTypingIndicator();
+        appendMessage("ai", `⚠️ Network Error: ${err.message}. Check the server connection!`);
+    } finally {
+        isResponding = false;
+        document.querySelector(".send-btn").classList.remove("hidden");
+        document.querySelector(".stop-btn").classList.add("hidden");
+        clearFileInput(); // Clear the file after sending
+        await loadHistory(); // Refresh history panel
+    }
+}
+
+// Function to stop the response (UI only)
+function stopResponding() {
+    // Note: To truly stop the server response, you'd need abortable fetch/websockets.
+    // This only stops the UI indicators.
+    if (isResponding) {
+        removeTypingIndicator();
+        appendMessage("ai", "Response stopped. (The AI might still be thinking on the server side). 🛑");
+        isResponding = false;
+        document.querySelector(".send-btn").classList.remove("hidden");
+        document.querySelector(".stop-btn").classList.add("hidden");
+        clearFileInput();
+    }
+}
+
+// --- History Functions ---
+
+function toggleHistory() {
+    // Mobile Fix: Toggle the 'active' class which the CSS uses to show the panel
+    document.getElementById("history-panel").classList.toggle("active");
+}
+
+async function deleteHistory() {
+    if (confirm("Are you sure you want to clear the entire chat history? This cannot be undone.")) {
         await fetch("/delete-history", { method: "POST" });
-        document.getElementById("chat-box").innerHTML = "";
-        document.getElementById("history-box").innerHTML = "";
-        appendMessage("ai", "🗑️ All chat history has been deleted.");
-    } catch (error) {
-        appendMessage("ai", "❌ Failed to delete history.");
+        const chatBox = document.getElementById("chat-box");
+        const historyBox = document.getElementById("history-box");
+        if(chatBox) chatBox.innerHTML = "";
+        if(historyBox) historyBox.innerHTML = "";
+        appendMessage("ai", "Chat history cleared! Start a new cool conversation. ✅");
     }
 }
 
-// Initialize speech recognition (remains the same)
+async function loadHistory() {
+    const historyBox = document.getElementById("history-box");
+    if (!historyBox) return; 
+    
+    historyBox.innerHTML = ""; // Clear existing
+    try {
+        const res = await fetch("/history");
+        const data = await res.json();
+        data.forEach(item => {
+            const msg = document.createElement("div");
+            msg.className = `message ${item.sender === 'user' ? 'user-msg' : 'ai-msg'}`;
+            // Truncate long messages in history
+            const text = item.text.length > 80 ? item.text.substring(0, 80) + "..." : item.text;
+            msg.innerText = text;
+            historyBox.appendChild(msg);
+        });
+        historyBox.scrollTop = historyBox.scrollHeight;
+    } catch (err) {
+        console.error("Failed to load history:", err);
+    }
+}
+
+// --- Speech Recognition ---
 function startListening() {
-  if (!("webkitSpeechRecognition" in window)) {
-    alert("❌ Speech Recognition not supported in this browser.");
-    return;
-  }
-  const recognition = new webkitSpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  
-  const micButton = document.querySelector(".mic-btn");
-  const sendButton = document.querySelector(".send-btn");
-  const stopButton = document.querySelector(".stop-btn");
-
-  recognition.onstart = () => {
-    sendButton.classList.add("hidden");
-    stopButton.classList.remove("hidden");
-    micButton.style.backgroundColor = '#ff4d4d'; // Red highlight
-    micButton.style.color = '#fff';
-    appendMessage("ai", "🎤 Listening... Say something!", false, "ai-typing");
-  };
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    document.getElementById("userInput").value = transcript;
-    const typingIndicator = document.querySelector(".ai-typing");
-    if(typingIndicator) typingIndicator.remove();
-    sendMessage();
-  };
-  recognition.onerror = (event) => {
-    const typingIndicator = document.querySelector(".ai-typing");
-    if(typingIndicator) typingIndicator.remove();
-    appendMessage("ai", "⚠️ Voice error: " + event.error);
-    sendButton.classList.remove("hidden");
-    stopButton.classList.add("hidden");
-  }
-  recognition.onend = () => {
-    if (!isResponding) {
-      sendButton.classList.remove("hidden");
-      stopButton.classList.add("hidden");
+    const userInput = document.getElementById("userInput");
+    if (!userInput) return;
+    if (!("webkitSpeechRecognition" in window)) {
+        alert("❌ Speech Recognition not supported in this browser. Try Chrome or Edge.");
+        return;
     }
-    micButton.style.backgroundColor = '#dddddd'; // Revert color
-    micButton.style.color = '#0088ff';
-  }
-  recognition.start();
+    const recognition = new webkitSpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    
+    const typingIndicator = showTypingIndicator();
+    typingIndicator.querySelector('span').innerText = "🎤 Listening...";
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        userInput.value = transcript;
+        removeTypingIndicator();
+        sendMessage();
+    };
+    recognition.onerror = (event) => {
+        removeTypingIndicator();
+        appendMessage("ai", "⚠️ Voice error: " + event.error + " Try typing instead.");
+    }
+    recognition.onend = () => {
+         removeTypingIndicator();
+    };
+    recognition.start();
 }
 
-
-// Load history on page load
-window.onload = loadHistory;
+// --- Initial Load ---
+window.onload = () => {
+    // Only run the chat-specific scripts if the elements exist on the page
+    if (document.getElementById("chat-box")) {
+        loadHistory();
+        loadVoices();
+    }
+};
