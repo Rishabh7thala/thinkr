@@ -1,0 +1,29 @@
+{% extends "_layout.html" %}
+
+{% block title %}Unlock Your Creative Genius{% endblock %}
+
+{% block content %}
+<main class="landing-page">
+    <section class="hero">
+        <h1 class="hero-title">Unlock Your Creative Genius. Instantly. 💡</h1>
+        <p class="hero-subtitle">Thinkr provides lightning-fast AI tools for writing, design, and analysis. All niches, all solutions.</p>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>Text Generation</h3>
+                <p>Bloggers, Students, Professionals: Create fast, cool, and emoji-rich content.</p>
+                <a href="{{ url_for('text_generator') }}" class="cta-button">Start Chatting 🚀</a>
+            </div>
+            <div class="feature-card">
+                <h3>Image Creator</h3>
+                <p>Design, Market, Inspire: Generate stunning visuals for any project.</p>
+                <a href="{{ url_for('image_generator') }}" class="cta-button">Design Now ✨</a>
+            </div>
+            <div class="feature-card">
+                <h3>AI Voice Chat</h3>
+                <p>Engage & Communicate: Hear responses in 4 distinct, high-quality voices.</p>
+                <a href="{{ url_for('text_generator') }}" class="cta-button">Try Voice 🔊</a>
+            </div>
+        </div>
+    </section>
+</main>
+{% endblock %}
