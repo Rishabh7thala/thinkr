@@ -1,16 +1,17 @@
 // --- Globals ---
 let isResponding = false;
 let currentUploadedFile = null;
-const synth = window.speechSynthesis;
+// FIX: Ensure 'window.speechSynthesis' exists before creating the global synth variable
+const synth = window.speechSynthesis || {}; 
 let voices = [];
 
 // --- AI Voice (TTS) Functions ---
 
 function loadVoices() {
     const voiceSelect = document.getElementById("voice-select");
-    if (!voiceSelect) return;
+    if (!voiceSelect || !synth.getVoices) return; // FIX: Check if synth and getVoices exist
 
-    synth.onvoiceschanged = () => {
+    const populateVoices = () => {
         voices = synth.getVoices();
         if (voices.length === 0) {
             voiceSelect.innerHTML = '<option value="">No voices available</option>';
@@ -23,11 +24,11 @@ function loadVoices() {
 
         // 1. Prioritize finding 2 male and 2 female English voices
         for (const voice of voices) {
-            if (voice.lang.startsWith('en-') && !voice.name.includes('WaveNet')) {
-                 const isFemale = voice.name.includes('Female') || voice.gender === 'female' || voice.name.includes('Google UK English');
-                 const isMale = voice.name.includes('Male') || voice.gender === 'male' || voice.name.includes('Google US English');
-                 
-                 if (isFemale && foundVoices.female.length < 2) {
+            if (voice.lang.startsWith('en-')) { // Simplified check for English voices
+                const isFemale = voice.name.toLowerCase().includes('female') || voice.name.includes('Samantha') || voice.name.includes('Google UK English Female');
+                const isMale = voice.name.toLowerCase().includes('male') || voice.name.includes('Daniel') || voice.name.includes('Google US English Male');
+                
+                if (isFemale && foundVoices.female.length < 2) {
                     foundVoices.female.push(voice);
                 } else if (isMale && foundVoices.male.length < 2) {
                     foundVoices.male.push(voice);
@@ -36,54 +37,79 @@ function loadVoices() {
         }
         
         // 2. Add to dropdown
-        const allFound = [...foundVoices.female, ...foundVoices.male];
+        const allFound = [...foundVoices.male, ...foundVoices.female]; // Prefer male first (Thinkr is high-energy)
+        if (allFound.length === 0) {
+            // Fallback: use first 4 English voices if specific names/genders couldn't be categorized
+            allFound.push(...voices.filter(v => v.lang.startsWith('en-')).slice(0, 4));
+        }
         if (allFound.length === 0) {
              voiceSelect.innerHTML = '<option value="">Select Voice</option>';
         }
 
         allFound.forEach(voice => {
             const option = document.createElement('option');
-            option.textContent = `${voice.name.split(' ').slice(0, 3).join(' ')} (${voice.gender || 'neutral'})`;
-            option.setAttribute('data-name', voice.name);
+            // FIX: Use voice.name directly as the value for accurate finding
+            option.value = voice.name; 
+            option.textContent = `${voice.name.split(' ').slice(0, 3).join(' ')} (${voice.lang})`;
+            
+            // Set a default voice (e.g., the first one found, or a specific name)
+            if (voice.name.includes('Daniel') || voice.name.includes('Google US English Male')) {
+                option.selected = true;
+            }
+
             voiceSelect.appendChild(option);
         });
         
-        if (allFound.length > 0) {
-            // Select the first voice by default
-            voiceSelect.selectedIndex = 0;
+        // If no default was set, select the first one
+        if (voiceSelect.selectedIndex === -1 && allFound.length > 0) {
+             voiceSelect.selectedIndex = 0;
         }
     };
 
+    // Load voices. This event is key for cross-browser compatibility.
+    synth.onvoiceschanged = populateVoices;
+
     // If voices are already loaded, trigger the handler immediately
     if (synth.getVoices().length > 0) {
-        synth.onvoiceschanged();
+        populateVoices();
     }
 }
 
-function speakMessage(iconElement) {
-    const messageElement = iconElement.closest('.ai-msg');
-    // Get the text from the internal span
-    const textToSpeak = messageElement.querySelector('span:not(.speaker-icon)').innerText; 
+function speakResponse(text) {
+    if (!synth.speak) return; // Check if TTS is available
     
+    // Stop any current speaking to avoid overlap
     if (synth.speaking) {
         synth.cancel();
     }
 
-    if (textToSpeak) {
-        const utterThis = new SpeechSynthesisUtterance(textToSpeak);
-        const voiceSelect = document.getElementById("voice-select");
-        
-        if (voiceSelect && voiceSelect.options.length > 0) {
-            const selectedOption = voiceSelect.options[voiceSelect.selectedIndex];
-            const voiceName = selectedOption.getAttribute('data-name');
-            const selectedVoice = voices.find(v => v.name === voiceName);
-            if (selectedVoice) {
-                utterThis.voice = selectedVoice;
-            }
+    if (!text) return;
+
+    const utterThis = new SpeechSynthesisUtterance(text);
+    const voiceSelect = document.getElementById("voice-select");
+    
+    // Set selected voice
+    if (voiceSelect && voiceSelect.value) {
+        const selectedVoice = voices.find(v => v.name === voiceSelect.value);
+        if (selectedVoice) {
+            utterThis.voice = selectedVoice;
         }
-        
-        synth.speak(utterThis);
     }
+    
+    // Set properties for a "high-energy" voice
+    utterThis.rate = 1.05; // Slightly faster
+    utterThis.pitch = 1.0; 
+
+    synth.speak(utterThis);
+}
+
+function speakMessage(iconElement) {
+    const messageElement = iconElement.closest('.ai-msg');
+    // Get the text from the internal span (excluding the speaker icon's content)
+    const textToSpeak = messageElement.querySelector('span:not(.speaker-icon)').innerText; 
+    
+    // FIX: Use the new speakResponse function to utilize voice selection logic
+    speakResponse(textToSpeak); 
 }
 
 // --- Chat & DOM Functions ---
@@ -110,6 +136,7 @@ function appendMessage(sender, text, imageUrl = null) {
             const img = document.createElement("img");
             img.src = imageUrl;
             img.alt = "Uploaded image";
+            img.className = "uploaded-image-preview"; // Use a class for CSS styling
             msg.appendChild(img);
         }
     } else {
@@ -126,7 +153,7 @@ function appendMessage(sender, text, imageUrl = null) {
         speakerIcon.onclick = () => speakMessage(speakerIcon);
         
         msg.appendChild(textSpan);
-        msg.appendChild(speakerIcon);
+        msg.appendChild(speakerIcon); // Speaker icon goes after the text
     }
 
     chatBox.appendChild(msg);
@@ -142,6 +169,7 @@ function showTypingIndicator() {
         indicator = document.createElement("div");
         indicator.className = "message ai-msg ai-typing";
         // Put text inside span for consistency, remove speaker icon
+        // Ensure the span is inside the indicator
         indicator.innerHTML = "<span>... Thinking fast ⚡</span>"; 
         chatBox.appendChild(indicator);
     }
@@ -166,7 +194,7 @@ function clearFileInput() {
     const userInput = document.getElementById("userInput");
     currentUploadedFile = null;
     if(fileInput) fileInput.value = null; 
-    if(userInput) userInput.placeholder = "💡 Ask Thinkr anything (or upload an image)...";
+    if(userInput) userInput.placeholder = "💡 Ask Thinkr anything...";
 }
 
 // Event listener for file selection
@@ -205,6 +233,7 @@ async function sendMessage() {
 
     let userMessageElement;
     
+    // 1. Show User Message and Image
     if (file) {
         const objectURL = URL.createObjectURL(file);
         // Show text and the image thumbnail in the user message
@@ -233,10 +262,19 @@ async function sendMessage() {
 
         const res = await fetch(endpoint, fetchOptions);
         const data = await res.json();
-        responseText = data.response || data.error;
-
-        removeTypingIndicator();
-        appendMessage("ai", responseText);
+        
+        // Handle response
+        if (data.response) {
+            responseText = data.response;
+            removeTypingIndicator();
+            appendMessage("ai", responseText);
+            // FIX: Integrate the TTS function here to speak the AI's response
+            speakResponse(responseText); 
+        } else if (data.error) {
+            responseText = `⚠️ Server Error: ${data.error}`;
+            removeTypingIndicator();
+            appendMessage("ai", responseText);
+        }
 
     } catch (err) {
         removeTypingIndicator();
@@ -252,8 +290,11 @@ async function sendMessage() {
 
 // Function to stop the response (UI only)
 function stopResponding() {
-    // Note: To truly stop the server response, you'd need abortable fetch/websockets.
-    // This only stops the UI indicators.
+    // FIX: Cancel any ongoing speech synthesis
+    if (synth.speaking) {
+        synth.cancel();
+    }
+    
     if (isResponding) {
         removeTypingIndicator();
         appendMessage("ai", "Response stopped. (The AI might still be thinking on the server side). 🛑");
@@ -331,7 +372,7 @@ function startListening() {
         appendMessage("ai", "⚠️ Voice error: " + event.error + " Try typing instead.");
     }
     recognition.onend = () => {
-         removeTypingIndicator();
+          removeTypingIndicator();
     };
     recognition.start();
 }
@@ -341,6 +382,6 @@ window.onload = () => {
     // Only run the chat-specific scripts if the elements exist on the page
     if (document.getElementById("chat-box")) {
         loadHistory();
-        loadVoices();
+        loadVoices(); // Load voices when the page loads
     }
 };
