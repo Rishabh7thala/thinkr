@@ -1,0 +1,40 @@
+{% extends "_layout.html" %}
+
+{% block title %}Use Cases & Applications{% endblock %}
+
+{% block content %}
+<main class="static-page">
+    <div class="header-section">
+        <h1 class="page-title">🎯 Use Cases: Thinkr for Every Professional</h1>
+        <p class="page-subtitle">Lightning-fast AI solutions tailored for your industry. Boost productivity and creativity instantly.</p>
+    </div>
+
+    <div class="use-cases-grid">
+        
+        <div class="case-card">
+            <h3 class="card-title">📝 Academic & Student Research</h3>
+            <p>Generate precise summaries from uploaded documents (using the chat feature) and check for complex grammar issues. Thinkr helps draft outlines and synthesize long-form texts for fast learning.</p>
+            <a href="{{ url_for('home') }}" class="card-link">Start Researching →</a>
+        </div>
+
+        <div class="case-card">
+            <h3 class="card-title">💻 Developer & Coder Assistant</h3>
+            <p>Generate code snippets, debug complex errors, or translate code from one language to another. Ask Thinkr to explain technical concepts clearly and quickly.</p>
+            <a href="{{ url_for('home') }}" class="card-link">Start Coding →</a>
+        </div>
+
+        <div class="case-card">
+            <h3 class="card-title">📈 Marketing & Social Media</h3>
+            <p>Create catchy ad copy, generate viral social media posts, and brainstorm content calendar ideas in seconds. Use the Image Generator to produce campaign visuals.</p>
+            <a href="{{ url_for('image_generator') }}" class="card-link">Create Assets →</a>
+        </div>
+
+        <div class="case-card">
+            <h3 class="card-title">🧑‍💼 Business & Report Generation</h3>
+            <p>Draft professional email responses, structure business proposals, and analyze industry data uploaded as a document or spreadsheet snippet (via the chat feature).</p>
+            <a href="{{ url_for('home') }}" class="card-link">Draft Reports →</a>
+        </div>
+
+    </div>
+</main>
+{% endblock %}
